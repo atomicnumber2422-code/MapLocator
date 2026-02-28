@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Campus Map Point Selector</title>
+	<link rel="stylesheet" href="style1.css">
+
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+			text-align: center;
+		}
+
+		.header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 10px;
+		}
+
+		.direction-btn, .nav-btn, #mode-toggle {
+			padding: 8px 16px;
+			margin: 5px;
+			cursor: pointer;
+			border: none;
+			background-color: #007bff;
+			color: white;
+			border-radius: 4px;
+		}
+
+		.map-wrapper {
+			width: 80%;
+			margin: auto;
+			overflow: hidden;
+			border: 2px solid #ccc;
+			position: relative;
+		}
+
+		.map-wrapper.pan {
+			cursor: grab;
+		}
+
+		.map-wrapper.select {
+			cursor: crosshair;
+		}
+
+		.map-wrapper:active.pan {
+			cursor: grabbing;
+		}
+
+		#zoom-container {
+			transform-origin: center center;
+			transition: transform 0.1s ease;
+			position: relative;
+		}
+
+		.main-image {
+			width: 100%;
+			display: block;
+			user-select: none;
+			pointer-events: auto;
+
+			/* Disable image dragging */
+			-webkit-user-drag: none;
+			-moz-user-drag: none;
+			-ms-user-drag: none;
+			user-drag: none;
+		}
+
+		#marker {
+			position: absolute;
+			width: 12px;
+			height: 12px;
+			background: red;
+			border-radius: 50%;
+			transform: translate(-50%, -50%);
+			pointer-events: none;
+			left: -50px; /* hide initially */
+			top: -50px;
+		}
+
+		.container-btn {
+			margin-top: 10px;
+		}
+	</style>
+</head>
+
+<body>
+
+<div class="header">
+	<button class="direction-btn" onclick="window.location.href='Direction.html'">
+		Get Direction
+	</button>
+	<div class="home-btn" onclick="resetMap()">
+		<img src="resources/home.png" alt="Home" class="home-image" width="40">
+	</div>
+</div>
+
+<div class="logo-wrapper" onclick="resetMap()">
+	<img src="resources/SciWayLogo.png" alt="Logo" class="logo-image" width="100">
+</div>
+
+<h2 class="title">Click on the Map to Get Coordinates</h2>
+
+<!-- Mode Toggle -->
+<button id="mode-toggle" onclick="toggleMode()">Mode: Select</button>
+
+<div class="map-wrapper select" id="map-wrapper">
+	<div id="zoom-container">
+		<img
+			src="maps/map_points.png"
+			id="campus-map"
+			class="main-image"
+			onclick="getCoordinates(event)"
+			draggable="false"
+		>
+		<div id="marker"></div>
+	</div>
+</div>
+
+<p id="coords">X%: -, Y%: -</p>
+
+<div class="container-btn">
+	<button class="nav-btn" onclick="changeMap('maps/FAJARDO_FINALBLDG.png')">
+		Fajardo Building
+	</button>
+
+	<button class="nav-btn" onclick="changeMap('maps/PEREZ_FINALBLDG.png')">
+		Perez Building
+	</button>
+
+	<button class="nav-btn" onclick="changeMap('maps/DWPH_FINALBLDG.png')">
+		DPWH Building
+	</button>
+
+	<button class="nav-btn" onclick="changeMap('maps/SB_FINALBLDG.png')">
+		Security Bank Building
+	</button>
+
+	<button class="nav-btn" onclick="changeMap('maps/SHS_FINALBLDG.png')">
+		Senior High School Building
+	</button>
+</div>
+
+<script src="scripts/change_map.js"></script>
+<script src="scripts/getLoc.js"></script>
+
+<script>
+	let scale = 1;
+	let translateX = 0;
+	let translateY = 0;
+	let isDragging = false;
+	let startX, startY;
+	let mode = "select"; // "select" or "pan"
+
+	const zoomContainer = document.getElementById("zoom-container");
+	const wrapper = document.getElementById("map-wrapper");
+	const marker = document.getElementById("marker");
+	const coordsText = document.getElementById("coords");
+	const modeBtn = document.getElementById("mode-toggle");
+
+	function updateTransform() {
+		zoomContainer.style.transform =
+			`translate(${translateX}px, ${translateY}px) scale(${scale})`;
+	}
+
+	function toggleMode() {
+		if (mode === "select") {
+			mode = "pan";
+			modeBtn.textContent = "Mode: Pan";
+			wrapper.classList.remove("select");
+			wrapper.classList.add("pan");
+		} else {
+			mode = "select";
+			modeBtn.textContent = "Mode: Select";
+			wrapper.classList.remove("pan");
+			wrapper.classList.add("select");
+		}
+	}
+
+	// ZOOM (works in both modes)
+	wrapper.addEventListener("wheel", function (e) {
+		e.preventDefault();
+		const zoomIntensity = 0.1;
+
+		if (e.deltaY < 0) scale += zoomIntensity;
+		else scale -= zoomIntensity;
+
+		scale = Math.min(Math.max(1, scale), 4);
+		updateTransform();
+	});
+
+	// PAN
+	wrapper.addEventListener("mousedown", function (e) {
+		if (mode === "pan" && scale > 1) {
+			isDragging = true;
+			startX = e.clientX - translateX;
+			startY = e.clientY - translateY;
+			e.preventDefault(); // prevent image selection
+		}
+	});
+
+	window.addEventListener("mousemove", function (e) {
+		if (!isDragging) return;
+
+		translateX = e.clientX - startX;
+		translateY = e.clientY - startY;
+		updateTransform();
+	});
+
+	window.addEventListener("mouseup", function () {
+		isDragging = false;
+	});
+
+	// GET COORDINATES (only in select mode)
+	function getCoordinates(e) {
+		if (mode !== "select") return;
+
+		const rect = zoomContainer.getBoundingClientRect();
+		const x = ((e.clientX - rect.left) / rect.width) * 100;
+		const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+		marker.style.left = `${x}%`;
+		marker.style.top = `${y}%`;
+		coordsText.textContent = `X%: ${x.toFixed(2)}, Y%: ${y.toFixed(2)}`;
+	}
+
+	// Expose globally
+	window.getCoordinates = getCoordinates;
+
+	// Reset Map function
+	function resetMap() {
+		scale = 1;
+		translateX = 0;
+		translateY = 0;
+		updateTransform();
+		marker.style.left = `-50px`;
+		marker.style.top = `-50px`;
+		coordsText.textContent = `X%: -, Y%: -`;
+	}
+	window.resetMap = resetMap;
+</script>
+
+</body>
+</html>
